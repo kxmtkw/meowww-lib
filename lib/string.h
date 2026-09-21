@@ -2,9 +2,11 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "defs.h"
 
+#define _mw_string_growth_factor(value) value + (value >> 1)
 
 struct mw_string {
 	char* data;
@@ -13,6 +15,19 @@ struct mw_string {
 };
 
 typedef struct mw_string mw_string;
+
+static inline unsigned int
+_mw_string_rawlen(const char* c) {
+	unsigned int len = 0;
+	char* curr_c = (char*) c;
+
+	while (*curr_c != '\0') {
+		len++;
+		curr_c++;
+	}
+
+	return len;
+}
 
 /*
 Create a new empty string.
@@ -82,29 +97,36 @@ mw_string_resize(mw_string* str, unsigned int new_size) {
 	return mw_code_ok;
 }
 
-
 /*
-Initialize a string from a raw string. Can also be used to create a string from another string.
+Initialize a string from a raw string. Also takes the length of the raw string for O(n) copy.
 */
 static inline mw_code
-mw_string_from(mw_string* str, const char* c) {
-
-	unsigned int len = 0;
-	char* curr_c = (char*) c;
-
-	while (*curr_c != '\0') {
-		len++;
-		curr_c++;
-	}
-
+mw_string_froml(mw_string* str, const char* c, unsigned int len) {
 	mw_string_reserve(str, len);
 
 	memcpy(str->data, c, len);
 	str->size = len;
 
 	return mw_code_ok;
+} 
+
+
+/*
+Initialize a string from a raw string. The process is O(n^2) because length has to be found. If length is known or you're looking for 
+a more optimized process, use `mw_string_froml` instead.
+*/
+static inline mw_code
+mw_string_from(mw_string* str, const char* c) {
+	return mw_string_froml(str, c, _mw_string_rawlen(c));
 }
 
+/*
+Initialize a string with another string.
+*/
+static inline mw_code
+mw_string_froms(mw_string* str, mw_string* src) {
+	return mw_string_froml(str, src->data, src->size);
+}
 
 /*
 Get the current capacity of the string.
@@ -163,10 +185,109 @@ static inline mw_code
 mw_string_push(mw_string* str, char c) {
 
 	if (str->size >= str->cap) {
-		mw_string_reserve(str, str->cap + (str->cap >> 1));
+		mw_string_reserve(str, _mw_string_growth_factor(str->cap));
 	}
 
 	str->data[str->size++] = c;
 
 	return mw_code_ok;
+}
+
+/*
+Extend the string with a raw string, reserving more memory if needed. Also takes the length of the raw string.
+*/
+static inline mw_code 
+mw_string_extendl(mw_string* str, const char* c, unsigned int len) {
+
+	if (str->size + len >= str->cap) {
+		mw_string_reserve(str, _mw_string_growth_factor(str->cap) + len);
+	}
+
+	memcpy(str->data + str->size, c, len);
+	str->size += len;
+
+	return mw_code_ok;
+}
+
+/*
+Extend the string with a raw string, reserving more memory if needed.
+*/
+static inline mw_code 
+mw_string_extend(mw_string* str, const char* c) {
+	return mw_string_extendl(str, c, _mw_string_rawlen(c));
+}
+
+/*
+Extend the string with another string, reserving more memory if needed.
+*/
+static inline mw_code 
+mw_string_extends(mw_string* str, mw_string* other) {
+	return mw_string_extendl(str, other->data, other->size);
+}
+
+
+/*
+Create a copy of the string and write it back to `return_value`. Equivalent to using `mw_string_froms`.
+*/
+static inline mw_code 
+mw_string_copy(mw_string* str, mw_string* return_value) {
+	mw_string copy = mw_string_new();
+	mw_string_froms(&copy, str);
+	*return_value = copy;
+	return mw_code_ok;
+}
+
+/*
+Check whether a string starts with specified raw string. If another string object needs to be used, use `mw_string_data`.
+*/
+static inline bool
+mw_string_startswith(mw_string* str, const char* c) {
+
+	unsigned int index = 0;
+	char* curr = (char*)c;
+
+	while (*curr != '\0') {
+
+		if (index >= str->size) {
+			return false;
+		}
+
+		if (*curr != str->data[index]) {
+			return false;
+		}
+
+		index++;
+		curr++;
+	}
+
+	return true;
+}
+
+
+/*
+Check whether a string ends with specified raw string. If another string object needs to be used, use `mw_string_data`.
+*/
+static inline bool
+mw_string_endswith(mw_string* str, const char* c) {
+
+	unsigned int len = _mw_string_rawlen(c);
+	unsigned int index = str->size - len;
+
+	char* curr = (char*) c;
+
+	while (*curr != '\0') {
+
+		if (index >= str->size) {
+			return false;
+		}
+
+		if (*curr != str->data[index]) {
+			return false;
+		}
+
+		index++;
+		curr++;
+	}
+
+	return true;
 }

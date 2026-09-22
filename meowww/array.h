@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MEOWWW_ARRAY_H
+#define MEOWWW_ARRAY_H
 
 #include "defs.h"
 
@@ -117,3 +118,6 @@ PREFIX ## mw_ ## NAME ## _array_set(PREFIX ## mw_ ## NAME ## _array* arr, unsign
 
 #define mw_define_array(NAME, TYPE) _mw_define_array_with_prefix(,NAME,TYPE)
 #define _mw_define_internal_array(NAME, TYPE) _mw_define_array_with_prefix(_,NAME,TYPE)
+
+
+#endif // MEOWWW_ARRAY_H

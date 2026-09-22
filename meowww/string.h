@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MEOWWW_STRING_H
+#define MEOWWW_STRING_H
 
 #include <stdlib.h>
 #include <string.h>
@@ -291,3 +292,6 @@ mw_string_endswith(mw_string* str, const char* c) {
 
 	return true;
 }
+
+
+#endif // MEOWWW_STRING_H

@@ -1,11 +1,23 @@
+
 #ifndef MEOWWW_H
 #define MEOWWW_H
+
+
+#ifndef MEOWWW_DEFS_H
+#define MEOWWW_DEFS_H
 
 
 typedef enum {
 	mw_code_ok,
 	mw_code_error
 } mw_code;
+
+
+#endif // MEOWWW_DEFS_H
+
+
+#ifndef MEOWWW_STRING_H
+#define MEOWWW_STRING_H
 
 #include <stdlib.h>
 #include <string.h>
@@ -298,6 +310,13 @@ mw_string_endswith(mw_string* str, const char* c) {
 	return true;
 }
 
+
+#endif // MEOWWW_STRING_H
+
+#ifndef MEOWWW_ARRAY_H
+#define MEOWWW_ARRAY_H
+
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -413,4 +432,9 @@ PREFIX ## mw_ ## NAME ## _array_set(PREFIX ## mw_ ## NAME ## _array* arr, unsign
 
 #define mw_define_array(NAME, TYPE) _mw_define_array_with_prefix(,NAME,TYPE)
 #define _mw_define_internal_array(NAME, TYPE) _mw_define_array_with_prefix(_,NAME,TYPE)
+
+
+#endif // MEOWWW_ARRAY_H
+
+
 #endif // MEOWWW_H

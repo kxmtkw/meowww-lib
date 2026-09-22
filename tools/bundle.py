@@ -1,15 +1,14 @@
-import os
 import re
 from pathlib import Path
 
-LIBRARY_DIR = Path("lib").resolve()
+LIBRARY_DIR = Path("meowww")
 LOCAL_INCLUDE_RE = re.compile(r'^\s*#include\s+"([^"]+)"')
 PRAGMA_ONCE_RE = re.compile(r'^\s*#pragma\s+once\s*$', re.IGNORECASE)
 VISITED = set()
 
 
 def resolve_includes(filepath: str | Path) -> str:
-	path = Path(filepath).resolve()
+	path = Path(filepath)
 
 	if path in VISITED:
 		return ""
@@ -17,6 +16,7 @@ def resolve_includes(filepath: str | Path) -> str:
 	VISITED.add(path)
 
 	output = []
+	output.append("\n")
 	current_dir = path.parent
 
 	with open(path, "r", encoding="utf-8") as f:
@@ -38,12 +38,13 @@ def resolve_includes(filepath: str | Path) -> str:
 			else:
 				output.append(line)
 
+	output.append("\n")
 	return "".join(output)
 
 
 if __name__ == "__main__":
 	
-	bundled = resolve_includes("lib/meowww.h")
+	bundled = resolve_includes(LIBRARY_DIR / "meowww.h")
 
-	with open("meowww.h", "w", encoding="utf-8") as f:
+	with open(Path("dist") / "meowww.h", "w", encoding="utf-8") as f:
 		f.write(bundled)

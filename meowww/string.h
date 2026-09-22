@@ -38,8 +38,9 @@ Reserve capacity for the string. Use this if you know that you are going to deal
 static inline void
 mw_string_reserve(mw_string* str, unsigned int new_cap) {
 
+	_mw_set_code(mw_code_ok);
+
 	if (new_cap <= str->cap) {
-		_mw_set_code(mw_code_ok);
 		return;
 	}
 
@@ -53,7 +54,6 @@ mw_string_reserve(mw_string* str, unsigned int new_cap) {
 	}
 
 	str->cap = new_cap;
-	_mw_set_code(mw_code_ok);
 }
 
 
@@ -66,21 +66,21 @@ Resize a string. Fills bytes with '\0' if the size is increased.
 static inline void
 mw_string_resize(mw_string* str, unsigned int new_size) {
 
+	_mw_set_code(mw_code_ok);
+
 	if (new_size <= str->size) {
 		memset(str->data + new_size, '\0', str->size - new_size);
 		str->size = new_size;
-		_mw_set_code(mw_code_ok);
 		return;
 	}
 
 	if (new_size > str->cap) {
 		mw_string_reserve(str, new_size);
+		if (!mw_check()) {return;}
 	}
 
 	memset(str->data + str->size, '\0', new_size - str->size);
 	str->size = new_size;
-
-	_mw_set_code(mw_code_ok);
 }
 
 /*
@@ -88,12 +88,12 @@ Create a new string from a raw string with it's length.
 */
 static inline mw_string 
 mw_string_newl(const char* c, unsigned int len) {
+	_mw_set_code(mw_code_ok);
 	mw_string string;
 	mw_string_reserve(&string, len);
 	if (!mw_check()) {return string;}
 	memcpy(string.data, c, len);
 	string.size = len;
-	_mw_set_code(mw_code_ok);
 	return string;
 }
 
@@ -112,12 +112,12 @@ Delete a string and its contents.
 */
 static inline void
 mw_string_delete(mw_string* str) {
+	_mw_set_code(mw_code_ok);
 	if (str->data != NULL and str->data != (char*)&str->inlined_data) {
 		free(str->data);
 	}
 	str->size = 0;
 	str->cap = 0;
-	_mw_set_code(mw_code_ok);
 }
 
 
@@ -126,11 +126,11 @@ Initialize a string from a raw string and it's length. Comparable to assignment.
 */
 static inline void
 mw_string_froml(mw_string* str, const char* c, unsigned int len) {
+	_mw_set_code(mw_code_ok);
 	mw_string_reserve(str, len);
 	if (!mw_check()) {return;}
 	memcpy(str->data, c, len);
 	str->size = len;
-	_mw_set_code(mw_code_ok);
 } 
 
 
@@ -172,12 +172,13 @@ Get the raw data of the string. The raw string is guaranteed to end in `\0` so i
 */
 static inline const char*
 mw_string_data(mw_string* str) {
+	_mw_set_code(mw_code_ok);
+
 	unsigned int pos = str->size;
 	mw_string_reserve(str, str->size + 1);
 	if (!mw_check()) {return NULL;}
 	str->data[pos] = '\0'; 
 	// the size is actually not updated here because \0 is just for c safety. 
-	_mw_set_code(mw_code_ok);
 	return str->data;
 }
 
@@ -187,8 +188,8 @@ to just access the raw data using `str.data`. Returns '\0' in case of failure.
 */
 static inline char
 mw_string_get(const mw_string* str, unsigned int i) {
-	if (i >= str->size) {_mw_set_code(mw_code_error); return '\0';}
 	_mw_set_code(mw_code_ok);
+	if (i >= str->size) {_mw_set_code(mw_code_error); return '\0';}
 	return str->data[i];
 }
 
@@ -198,9 +199,9 @@ to just access the raw data using `str.data`.
 */
 static inline void
 mw_string_set(mw_string* str, unsigned int i, char c) {
+	_mw_set_code(mw_code_ok);
 	if (i >= str->size) {_mw_set_code(mw_code_error); return;};
 	str->data[i] = c;
-	_mw_set_code(mw_code_ok);
 }
 
 /*
@@ -209,13 +210,14 @@ Push a character to the end of the string. Will reserve more memory if required.
 static inline void
 mw_string_push(mw_string* str, char c) {
 
+	_mw_set_code(mw_code_ok);
+
 	if (str->size >= str->cap) {
 		mw_string_reserve(str, _MW_STRING_GROWTH_FACTOR(str->cap));
 		if (!mw_check()) {return;}
 	}
 
 	str->data[str->size++] = c;
-	_mw_set_code(mw_code_ok);
 }
 
 /*
@@ -224,12 +226,12 @@ Pop a character from the end of the string.
 static inline char
 mw_string_pop(mw_string* str, char c) {
 
+	_mw_set_code(mw_code_ok);
+
 	if (str->size == 0) {
 		_mw_set_code(mw_code_error);
 		return '\0';
 	}
-
-	_mw_set_code(mw_code_ok);
 
 	return str->data[--str->size];;
 }
@@ -240,6 +242,8 @@ Extend the string with a raw string, reserving more memory if needed. Also takes
 static inline void
 mw_string_extendl(mw_string* str, const char* c, unsigned int len) {
 
+	_mw_set_code(mw_code_ok);
+
 	if (str->size + len >= str->cap) {
 		mw_string_reserve(str, _MW_STRING_GROWTH_FACTOR(str->cap) + len);
 		if (!mw_check()) {return;}
@@ -247,8 +251,6 @@ mw_string_extendl(mw_string* str, const char* c, unsigned int len) {
 
 	memcpy(str->data + str->size, c, len);
 	str->size += len;
-	
-	_mw_set_code(mw_code_ok);
 }
 
 /*
@@ -273,10 +275,10 @@ Create a copy of the string from another string.
 */
 static inline mw_string
 mw_string_copy(const mw_string* str) {
+	_mw_set_code(mw_code_ok);
 	mw_string copy = {0};
 	mw_string_froml(&copy, str->data, str->size);
 	if (!mw_check()) {return copy;}
-	_mw_set_code(mw_code_ok);
 	return copy;
 }
 
@@ -285,6 +287,8 @@ Check whether a string starts with specified raw string. If another string objec
 */
 static inline bool
 mw_string_startswith(const mw_string* str, const char* c) {
+
+	_mw_set_code(mw_code_ok);
 
 	unsigned int index = 0;
 	char* curr = (char*)c;
@@ -303,7 +307,6 @@ mw_string_startswith(const mw_string* str, const char* c) {
 		curr++;
 	}
 
-	_mw_set_code(mw_code_ok);
 	return true;
 }
 
@@ -313,6 +316,8 @@ Check whether a string ends with specified raw string. If another string object 
 */
 static inline bool
 mw_string_endswith(const mw_string* str, const char* c) {
+
+	_mw_set_code(mw_code_ok);
 
 	unsigned int len = _mw_string_rawlen(c);
 	unsigned int index = str->size - len;
@@ -332,8 +337,6 @@ mw_string_endswith(const mw_string* str, const char* c) {
 		index++;
 		curr++;
 	}
-
-	_mw_set_code(mw_code_ok);
 	return true;
 }
 

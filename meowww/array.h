@@ -28,19 +28,19 @@ _mw_array_new(unsigned int size, unsigned int elem_size) {
 	return arr;
 }
 
-static inline mw_code
+static inline void
 _mw_array_from(_mw_array* array, void* data) {
+	_mw_set_code(mw_code_ok);
 	memcpy(array->data, data, array->size * array->elem_size);
-	return mw_code_ok;
 }
 
-static inline mw_code
+static inline void
 _mw_array_delete(_mw_array* array) {
+	_mw_set_code(mw_code_ok);
 	if (array->data) {
 		free(array->data);
 	}
 	array->data = NULL;
-	return mw_code_ok;
 }
 
 static inline unsigned int
@@ -48,38 +48,42 @@ _mw_array_size(_mw_array* array) {
 	return array->size;
 }
 
-static inline mw_code
+static inline void
 _mw_array_get(_mw_array* array, unsigned int i, void* ret) {
 
+	_mw_set_code(mw_code_ok);
+
 	if (array->data == NULL) {
-		return mw_code_error;	
+		_mw_set_code(mw_code_error);
+		return;
 	}
 	
 	if (i >= array->size) {
-		return mw_code_error;
+		_mw_set_code(mw_code_error);;
+		return;
 	}
 
 	uint8_t* value = array->data + (i * array->elem_size);
 	memcpy(ret, value, array->elem_size);
-
-	return mw_code_ok;
 }
 
-static inline mw_code
+static inline void
 _mw_array_set(_mw_array* array, unsigned int i, void* val) {
 
+	_mw_set_code(mw_code_ok);
+
 	if (array->data == NULL) {
-		return mw_code_error;	
+		_mw_set_code(mw_code_error);
+		return;	
 	}
 
 	if (i >= array->size) {
-		return mw_code_error;
+		_mw_set_code(mw_code_error);
+		return;
 	}
 
 	uint8_t* value = array->data + (i * array->elem_size);
 	memcpy(value, val, array->elem_size);
-
-	return mw_code_ok;
 }
 
 
@@ -96,23 +100,23 @@ PREFIX ## mw_ ## NAME ## _array_new(unsigned int size) { \
     }; \
     return arr; \
 } \
-static inline mw_code \
-PREFIX ## mw_ ## NAME ## _array_from(PREFIX ## mw_ ## NAME ## _array* arr, void* data) { return _mw_array_from((_mw_array*)arr, data); } \
+static inline void \
+PREFIX ## mw_ ## NAME ## _array_from(PREFIX ## mw_ ## NAME ## _array* arr, void* data) { _mw_array_from((_mw_array*)arr, data); } \
 \
-static inline mw_code \
-PREFIX ## mw_ ## NAME ## _array_delete(PREFIX ## mw_ ## NAME ## _array* arr) { return _mw_array_delete((_mw_array*)arr); } \
+static inline void \
+PREFIX ## mw_ ## NAME ## _array_delete(PREFIX ## mw_ ## NAME ## _array* arr) { _mw_array_delete((_mw_array*)arr); } \
 \
 static inline unsigned int \
 PREFIX ## mw_ ## NAME ## _array_size(PREFIX ## mw_ ## NAME ## _array* arr) { return arr->size; } \
 \
-static inline mw_code \
+static inline void \
 PREFIX ## mw_ ## NAME ## _array_get(PREFIX ## mw_ ## NAME ## _array* arr, unsigned int i, TYPE* ret) { \
-    return _mw_array_get((_mw_array*)arr, i, ret); \
+    _mw_array_get((_mw_array*)arr, i, ret); \
 } \
 \
-static inline mw_code \
+static inline void \
 PREFIX ## mw_ ## NAME ## _array_set(PREFIX ## mw_ ## NAME ## _array* arr, unsigned int i, TYPE val) { \
-    return _mw_array_set((_mw_array*)arr, i, &val); \
+    _mw_array_set((_mw_array*)arr, i, &val); \
 }
 
 

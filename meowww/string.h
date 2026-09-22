@@ -113,7 +113,7 @@ Delete a string and its contents.
 static inline void
 mw_string_delete(mw_string* str) {
 	_mw_set_code(mw_code_ok);
-	if (str->data != NULL and str->data != (char*)&str->inlined_data) {
+	if (str->data != NULL && str->data != (char*)&str->inlined_data) {
 		free(str->data);
 	}
 	str->size = 0;

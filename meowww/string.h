@@ -13,8 +13,10 @@
 struct mw_string {
 	unsigned int cap;
 	unsigned int size;
-	char* data;
-	char inlined_data[_MW_STRING_INLINE_BYTES];
+	union {
+		char  inline_buf[_MW_STRING_INLINE_BYTES];
+		char* heap_ptr;
+	} data;	
 };
 
 typedef struct mw_string mw_string;
@@ -38,22 +40,38 @@ Reserve capacity for the string. Use this if you know that you are going to deal
 static inline void
 mw_string_reserve(mw_string* str, unsigned int new_cap) {
 
-	_mw_set_code(mw_code_ok);
-
 	if (new_cap <= str->cap) {
 		return;
 	}
 
 	if (new_cap <= _MW_STRING_INLINE_BYTES) {
-		str->data = (char*) &str->inlined_data;
+		// inline sso
+		_mw_log("no malloc!");
 	}
-	else if (str->data == NULL) {
-		str->data = (char*) malloc(sizeof(char) * new_cap);
-	} else {
-		str->data = (char*) realloc(str->data, new_cap);
+	else {
+
+		if (str->data.heap_ptr == NULL)
+		str->data.heap_ptr = (char*) malloc(sizeof(char) * new_cap);
+		else 
+		str->data.heap_ptr = (char*) realloc(str->data.heap_ptr, new_cap);
+
+		_mw_assert(str->data.heap_ptr == NULL, "Memory could not be allocated for string %p.", str);
 	}
 
 	str->cap = new_cap;
+}
+
+
+/*
+Resolve the data pointer of a string.
+*/
+static inline char*
+_mw_string_get_data(const mw_string* str) {
+	if (str->cap <= _MW_STRING_INLINE_BYTES) {
+		return (char*) &str->data.inline_buf;
+	}
+	_mw_assert(str->data.heap_ptr != NULL, "Cannot get data pointer of string (%p), is null.", str);
+	return str->data.heap_ptr;
 }
 
 
@@ -66,20 +84,19 @@ Resize a string. Fills bytes with '\0' if the size is increased.
 static inline void
 mw_string_resize(mw_string* str, unsigned int new_size) {
 
-	_mw_set_code(mw_code_ok);
+	char* data = _mw_string_get_data(str);
 
 	if (new_size <= str->size) {
-		memset(str->data + new_size, '\0', str->size - new_size);
+		memset(data + new_size, '\0', str->size - new_size);
 		str->size = new_size;
 		return;
 	}
 
 	if (new_size > str->cap) {
 		mw_string_reserve(str, new_size);
-		if (!mw_check()) {return;}
 	}
 
-	memset(str->data + str->size, '\0', new_size - str->size);
+	memset(data + str->size, '\0', new_size - str->size);
 	str->size = new_size;
 }
 
@@ -88,11 +105,9 @@ Create a new string from a raw string with it's length.
 */
 static inline mw_string 
 mw_string_newl(const char* c, unsigned int len) {
-	_mw_set_code(mw_code_ok);
 	mw_string string;
 	mw_string_reserve(&string, len);
-	if (!mw_check()) {return string;}
-	memcpy(string.data, c, len);
+	memcpy(_mw_string_get_data(&string), c, len);
 	string.size = len;
 	return string;
 }
@@ -108,13 +123,22 @@ mw_string_new(const char* c) {
 
 
 /*
+Create a new string from another string.
+*/
+static inline mw_string 
+mw_string_news(const mw_string* src) {
+	return mw_string_newl(_mw_string_get_data(src), src->size);
+}
+
+
+/*
 Delete a string and its contents.
 */
 static inline void
 mw_string_delete(mw_string* str) {
-	_mw_set_code(mw_code_ok);
-	if (str->data != NULL && str->data != (char*)&str->inlined_data) {
-		free(str->data);
+	char* data = _mw_string_get_data(str);
+	if (data != NULL && data != (char*)&str->data.inline_buf) {
+		free(str->data.heap_ptr);
 	}
 	str->size = 0;
 	str->cap = 0;
@@ -122,20 +146,18 @@ mw_string_delete(mw_string* str) {
 
 
 /*
-Initialize a string from a raw string and it's length. Comparable to assignment.
+Assign a string from a raw string and it's length.
 */
 static inline void
 mw_string_froml(mw_string* str, const char* c, unsigned int len) {
-	_mw_set_code(mw_code_ok);
 	mw_string_reserve(str, len);
-	if (!mw_check()) {return;}
-	memcpy(str->data, c, len);
+	memcpy(_mw_string_get_data(str), c, len);
 	str->size = len;
 } 
 
 
 /*
-Initialize a string from a raw string. The process is O(n^2) because length has to be found. If length is known or you're looking for 
+Assign a string from a raw string. The process is O(n^2) because length has to be found. If length is known or you're looking for 
 a more optimized process, use `mw_string_froml` instead.
 */
 static inline void
@@ -144,11 +166,11 @@ mw_string_from(mw_string* str, const char* c) {
 }
 
 /*
-Initialize a string with another string.
+Assign a string with another string.
 */
 static inline void
-mw_string_froms(mw_string* str, const mw_string src) {
-	return mw_string_froml(str, src.data, src.size);
+mw_string_froms(mw_string* str, const mw_string* src) {
+	return mw_string_froml(str, _mw_string_get_data(src), src->size);
 }
 
 /*
@@ -172,36 +194,32 @@ Get the raw data of the string. The raw string is guaranteed to end in `\0` so i
 */
 static inline const char*
 mw_string_data(mw_string* str) {
-	_mw_set_code(mw_code_ok);
-
 	unsigned int pos = str->size;
-	mw_string_reserve(str, str->size + 1);
-	if (!mw_check()) {return NULL;}
-	str->data[pos] = '\0'; 
+	mw_string_reserve(str, str->size + 1); // this can cause some slowness if str.cap happens to be equal to str.size
+	char* c = _mw_string_get_data(str);
+	c[pos] = '\0'; 
 	// the size is actually not updated here because \0 is just for c safety. 
-	return str->data;
+	return c;
 }
 
 /*
 Get a character at `i` position. Should be used when the index is unknown. If you're iterating over the characters, it's recommended
-to just access the raw data using `str.data`. Returns '\0' in case of failure.
+to just access the raw data using `mw_string_data`. Returns '\0' in case of failure.
 */
 static inline char
 mw_string_get(const mw_string* str, unsigned int i) {
-	_mw_set_code(mw_code_ok);
-	if (i >= str->size) {_mw_set_code(mw_code_error); return '\0';}
-	return str->data[i];
+	_mw_assert(i < str->size, "Out of bounds access. String is of length %u, cannot access index %u.", str->size, i);
+	return _mw_string_get_data(str)[i];
 }
 
 /*
 Set a character at `i` position. Should be used when the index is unknown. If you're iterating over the characters, it's recommended
-to just access the raw data using `str.data`.
+to just access the raw data using `mw_string_data`.
 */
 static inline void
 mw_string_set(mw_string* str, unsigned int i, char c) {
-	_mw_set_code(mw_code_ok);
-	if (i >= str->size) {_mw_set_code(mw_code_error); return;};
-	str->data[i] = c;
+	_mw_assert(i < str->size, "Out of bounds access. String is of length %u, cannot access index %u.", str->size, i);
+	_mw_string_get_data(str)[i] = c;
 }
 
 /*
@@ -210,14 +228,11 @@ Push a character to the end of the string. Will reserve more memory if required.
 static inline void
 mw_string_push(mw_string* str, char c) {
 
-	_mw_set_code(mw_code_ok);
-
 	if (str->size >= str->cap) {
 		mw_string_reserve(str, _MW_STRING_GROWTH_FACTOR(str->cap));
-		if (!mw_check()) {return;}
 	}
 
-	str->data[str->size++] = c;
+	_mw_string_get_data(str)[str->size++] = c;
 }
 
 /*
@@ -225,15 +240,8 @@ Pop a character from the end of the string.
 */
 static inline char
 mw_string_pop(mw_string* str, char c) {
-
-	_mw_set_code(mw_code_ok);
-
-	if (str->size == 0) {
-		_mw_set_code(mw_code_error);
-		return '\0';
-	}
-
-	return str->data[--str->size];;
+	_mw_assert(str->size != 0, "Pop out of empty string (%p) not possible.", str);
+	return _mw_string_get_data(str)[--str->size];;
 }
 
 /*
@@ -242,14 +250,11 @@ Extend the string with a raw string, reserving more memory if needed. Also takes
 static inline void
 mw_string_extendl(mw_string* str, const char* c, unsigned int len) {
 
-	_mw_set_code(mw_code_ok);
-
 	if (str->size + len >= str->cap) {
 		mw_string_reserve(str, _MW_STRING_GROWTH_FACTOR(str->cap) + len);
-		if (!mw_check()) {return;}
 	}
 
-	memcpy(str->data + str->size, c, len);
+	memcpy(_mw_string_get_data(str) + str->size, c, len);
 	str->size += len;
 }
 
@@ -266,20 +271,7 @@ Extend the string with another string, reserving more memory if needed.
 */
 static inline void
 mw_string_extends(mw_string* str, mw_string* other) {
-	return mw_string_extendl(str, other->data, other->size);
-}
-
-
-/*
-Create a copy of the string from another string.
-*/
-static inline mw_string
-mw_string_copy(const mw_string* str) {
-	_mw_set_code(mw_code_ok);
-	mw_string copy = {0};
-	mw_string_froml(&copy, str->data, str->size);
-	if (!mw_check()) {return copy;}
-	return copy;
+	return mw_string_extendl(str, _mw_string_get_data(other), other->size);
 }
 
 /*
@@ -288,10 +280,9 @@ Check whether a string starts with specified raw string. If another string objec
 static inline bool
 mw_string_startswith(const mw_string* str, const char* c) {
 
-	_mw_set_code(mw_code_ok);
-
 	unsigned int index = 0;
 	char* curr = (char*)c;
+	char* data = _mw_string_get_data(str);
 
 	while (*curr != '\0') {
 
@@ -299,7 +290,7 @@ mw_string_startswith(const mw_string* str, const char* c) {
 			return false;
 		}
 
-		if (*curr != str->data[index]) {
+		if (*curr != data[index]) {
 			return false;
 		}
 
@@ -317,12 +308,11 @@ Check whether a string ends with specified raw string. If another string object 
 static inline bool
 mw_string_endswith(const mw_string* str, const char* c) {
 
-	_mw_set_code(mw_code_ok);
-
 	unsigned int len = _mw_string_rawlen(c);
 	unsigned int index = str->size - len;
 
 	char* curr = (char*) c;
+	char* data = _mw_string_get_data(str);
 
 	while (*curr != '\0') {
 
@@ -330,7 +320,7 @@ mw_string_endswith(const mw_string* str, const char* c) {
 			return false;
 		}
 
-		if (*curr != str->data[index]) {
+		if (*curr != data[index]) {
 			return false;
 		}
 

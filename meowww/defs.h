@@ -2,37 +2,37 @@
 #define MEOWWW_DEFS_H
 
 #include <stdio.h>
-#include <threads.h>
 
-typedef enum {
-	mw_code_ok,
-	mw_code_error
-} mw_code;
+/*
+MEOWWW_DEBUG -> will print debug logs for dev
+MEOWWW_NO_ASSERTIONS -> will disable assertions entirely
+*/
+
+#ifdef MEOWWW_DEBUG
+
+#define _mw_log(fmt, ...) \
+    fprintf(stderr, "[mw] " fmt "\n", ##__VA_ARGS__);
+
+#else
+
+#define _mw_log(fmt, ...) \
+    while (0) {};
+
+#endif // MEOWWW_DEBUG
 
 
-thread_local static mw_code _mw_global_error_code;
+#ifndef MEOWWW_NO_ASSERTIONS 
+
+#define _mw_assert(condition, fmt, ...) \
+	if (!(condition)) {fprintf(stderr, "[mw-error] " fmt "\n", ##__VA_ARGS__);}
+
+#else
+
+#define _mw_assert(condition, fmt, ...) \
+	while (0) {};
 
 
-static inline bool
-mw_check(void) {
-	return _mw_global_error_code == mw_code_ok;
-}
-
-static inline mw_code
-mw_get_code(void) {
-	return _mw_global_error_code;
-}
-
-static inline void
-_mw_set_code(mw_code code) {
-	_mw_global_error_code = code;
-	#ifdef MEOWWW_RAISE_ERRORS
-	if (code != mw_code_ok) {
-		printf("[meowww] failure\n");
-		exit(1);
-	}
-	#endif 
-}
+#endif // MEOWWW_NO_ASSERTIONS
 
 
 #endif // MEOWWW_DEFS_H

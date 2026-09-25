@@ -262,7 +262,7 @@ mw_string_extendl(mw_string* str, const char* c, unsigned int len) {
 Extend the string with a raw string, reserving more memory if needed. Use `extendl` if the length of the raw string is known.
 */
 static inline void 
-mw_string_extend(mw_string* str, const char* c) {
+mw_string_extendc(mw_string* str, const char* c) {
 	return mw_string_extendl(str, c, _mw_string_rawlen(c));
 }
 
@@ -273,6 +273,7 @@ static inline void
 mw_string_extends(mw_string* str, mw_string* other) {
 	return mw_string_extendl(str, _mw_string_get_data(other), other->size);
 }
+
 
 /*
 Check whether a string starts with specified raw string. If another string object needs to be used, use `mw_string_data`.
@@ -329,6 +330,45 @@ mw_string_endswith(const mw_string* str, const char* c) {
 	}
 	return true;
 }
+
+/*
+Finds the number of occurrences of a sub string. Returns 0 if none are found. If the sub string is larger, it also returns 0
+*/
+static inline unsigned int
+mw_string_countl(const mw_string* str, const char* c, unsigned int len) {
+
+	if (len > str->size) return 0;
+
+	unsigned int count = 0;
+	char* data = _mw_string_get_data(str);
+
+	for (unsigned int i = 0; i < str->size; i++) {
+		for (unsigned int j = 0; j < len; j++) {
+			if (data[i+j] != c[j]) break;
+		}
+		count++;
+	}
+
+	return count;
+}
+
+/*
+Finds the number of occurrences of a sub string. Returns 0 if none are found.
+*/
+static inline unsigned int
+mw_string_countc(const mw_string* str, const char* c) {
+	return mw_string_countl(str, c, _mw_string_rawlen(c));
+}
+
+
+/*
+Finds the number of occurrences of a sub string. Returns 0 if none are found.
+*/
+static inline unsigned int
+mw_string_counts(const mw_string* str, const mw_string* other) {
+	return mw_string_countl(str, _mw_string_get_data(other), other->size);
+}
+
 
 
 #endif // MEOWWW_STRING_H

@@ -7,37 +7,37 @@
 #define MEOWWW_DEFS_H
 
 #include <stdio.h>
-#include <threads.h>
 
-typedef enum {
-	mw_code_ok,
-	mw_code_error
-} mw_code;
+/*
+MEOWWW_DEBUG -> will print debug logs for dev
+MEOWWW_NO_ASSERTIONS -> will disable assertions entirely
+*/
+
+#ifdef MEOWWW_DEBUG
+
+#define _mw_log(fmt, ...) \
+    fprintf(stderr, "[mw] " fmt "\n", ##__VA_ARGS__);
+
+#else
+
+#define _mw_log(fmt, ...) \
+    while (0) {};
+
+#endif // MEOWWW_DEBUG
 
 
-thread_local static mw_code _mw_global_error_code;
+#ifndef MEOWWW_NO_ASSERTIONS 
+
+#define _mw_assert(condition, fmt, ...) \
+	if (!(condition)) {fprintf(stderr, "[mw-error] " fmt "\n", ##__VA_ARGS__);}
+
+#else
+
+#define _mw_assert(condition, fmt, ...) \
+	while (0) {};
 
 
-static inline bool
-mw_check(void) {
-	return _mw_global_error_code == mw_code_ok;
-}
-
-static inline mw_code
-mw_get_code(void) {
-	return _mw_global_error_code;
-}
-
-static inline void
-_mw_set_code(mw_code code) {
-	_mw_global_error_code = code;
-	#ifdef MEOWWW_RAISE_ERRORS
-	if (code != mw_code_ok) {
-		printf("[meowww] failure\n");
-		exit(1);
-	}
-	#endif 
-}
+#endif // MEOWWW_NO_ASSERTIONS
 
 
 #endif // MEOWWW_DEFS_H
@@ -54,24 +54,18 @@ _mw_set_code(mw_code code) {
 #define _MW_STRING_INLINE_BYTES 16
 #define _MW_STRING_GROWTH_FACTOR(VALUE) VALUE + (VALUE >> 1)
 
+#define mw_string_rawpack(raw_str) raw_str, strlen(raw_str)
+
 struct mw_string {
 	unsigned int cap;
 	unsigned int size;
-	char* data;
-	char inlined_data[_MW_STRING_INLINE_BYTES];
+	union {
+		char  inline_buf[_MW_STRING_INLINE_BYTES];
+		char* heap_ptr;
+	} data;	
 };
 
 typedef struct mw_string mw_string;
-
-static inline unsigned int
-_mw_string_rawlen(const char* c) {
-	unsigned int len = 0;
-	while (*c != '\0') {
-		len++;
-		c++;
-	}
-	return len;
-}
 
 
 /*
@@ -82,22 +76,38 @@ Reserve capacity for the string. Use this if you know that you are going to deal
 static inline void
 mw_string_reserve(mw_string* str, unsigned int new_cap) {
 
-	_mw_set_code(mw_code_ok);
-
 	if (new_cap <= str->cap) {
 		return;
 	}
 
 	if (new_cap <= _MW_STRING_INLINE_BYTES) {
-		str->data = (char*) &str->inlined_data;
+		// inline sso
+		_mw_log("no malloc!");
 	}
-	else if (str->data == NULL) {
-		str->data = (char*) malloc(sizeof(char) * new_cap);
-	} else {
-		str->data = (char*) realloc(str->data, new_cap);
+	else {
+
+		if (str->data.heap_ptr == NULL)
+		str->data.heap_ptr = (char*) malloc(sizeof(char) * new_cap);
+		else 
+		str->data.heap_ptr = (char*) realloc(str->data.heap_ptr, new_cap);
+
+		_mw_assert(str->data.heap_ptr != NULL, "Memory could not be allocated for string %p.", str);
 	}
 
 	str->cap = new_cap;
+}
+
+
+/*
+Resolve the data pointer of a string.
+*/
+static inline char*
+_mw_string_get_data(const mw_string* str) {
+	if (str->cap <= _MW_STRING_INLINE_BYTES) {
+		return (char*) &str->data.inline_buf;
+	}
+	_mw_assert(str->data.heap_ptr != NULL, "Cannot get data pointer of string (%p), is null.", str);
+	return str->data.heap_ptr;
 }
 
 
@@ -110,20 +120,19 @@ Resize a string. Fills bytes with '\0' if the size is increased.
 static inline void
 mw_string_resize(mw_string* str, unsigned int new_size) {
 
-	_mw_set_code(mw_code_ok);
+	char* data = _mw_string_get_data(str);
 
 	if (new_size <= str->size) {
-		memset(str->data + new_size, '\0', str->size - new_size);
+		memset(data + new_size, '\0', str->size - new_size);
 		str->size = new_size;
 		return;
 	}
 
 	if (new_size > str->cap) {
 		mw_string_reserve(str, new_size);
-		if (!mw_check()) {return;}
 	}
 
-	memset(str->data + str->size, '\0', new_size - str->size);
+	memset(data + str->size, '\0', new_size - str->size);
 	str->size = new_size;
 }
 
@@ -131,23 +140,30 @@ mw_string_resize(mw_string* str, unsigned int new_size) {
 Create a new string from a raw string with it's length.
 */
 static inline mw_string 
-mw_string_newl(const char* c, unsigned int len) {
-	_mw_set_code(mw_code_ok);
+mw_string_new(const char* c, unsigned int len) {
 	mw_string string;
 	mw_string_reserve(&string, len);
-	if (!mw_check()) {return string;}
-	memcpy(string.data, c, len);
+	memcpy(_mw_string_get_data(&string), c, len);
 	string.size = len;
 	return string;
 }
 
 /*
 Create a new string from a raw string. It's O(n^2) since the length of the string has to be found too. 
-If the length of the raw string is known, use `_mw_string_newl`
+If the length of the raw string is known, use `_mw_string_new`
 */
 static inline mw_string 
-mw_string_new(const char* c) {
-	return mw_string_newl(c, _mw_string_rawlen(c));
+mw_string_newc(const char* c) {
+	return mw_string_new(c, strlen(c));
+}
+
+
+/*
+Create a new string from another string.
+*/
+static inline mw_string 
+mw_string_news(const mw_string* src) {
+	return mw_string_new(_mw_string_get_data(src), src->size);
 }
 
 
@@ -156,9 +172,9 @@ Delete a string and its contents.
 */
 static inline void
 mw_string_delete(mw_string* str) {
-	_mw_set_code(mw_code_ok);
-	if (str->data != NULL && str->data != (char*)&str->inlined_data) {
-		free(str->data);
+	char* data = _mw_string_get_data(str);
+	if (data != NULL && data != (char*)&str->data.inline_buf) {
+		free(str->data.heap_ptr);
 	}
 	str->size = 0;
 	str->cap = 0;
@@ -166,33 +182,31 @@ mw_string_delete(mw_string* str) {
 
 
 /*
-Initialize a string from a raw string and it's length. Comparable to assignment.
+Assign a string from a raw string and it's length.
 */
 static inline void
-mw_string_froml(mw_string* str, const char* c, unsigned int len) {
-	_mw_set_code(mw_code_ok);
+mw_string_from(mw_string* str, const char* c, unsigned int len) {
 	mw_string_reserve(str, len);
-	if (!mw_check()) {return;}
-	memcpy(str->data, c, len);
+	memcpy(_mw_string_get_data(str), c, len);
 	str->size = len;
 } 
 
 
 /*
-Initialize a string from a raw string. The process is O(n^2) because length has to be found. If length is known or you're looking for 
+Assign a string from a raw string. The process is O(n^2) because length has to be found. If length is known or you're looking for 
 a more optimized process, use `mw_string_froml` instead.
 */
 static inline void
-mw_string_from(mw_string* str, const char* c) {
-	return mw_string_froml(str, c, _mw_string_rawlen(c));
+mw_string_fromc(mw_string* str, const char* c) {
+	return mw_string_from(str, c, strlen(c));
 }
 
 /*
-Initialize a string with another string.
+Assign a string with another string.
 */
 static inline void
-mw_string_froms(mw_string* str, const mw_string src) {
-	return mw_string_froml(str, src.data, src.size);
+mw_string_froms(mw_string* str, const mw_string* src) {
+	return mw_string_from(str, _mw_string_get_data(src), src->size);
 }
 
 /*
@@ -216,36 +230,32 @@ Get the raw data of the string. The raw string is guaranteed to end in `\0` so i
 */
 static inline const char*
 mw_string_data(mw_string* str) {
-	_mw_set_code(mw_code_ok);
-
 	unsigned int pos = str->size;
-	mw_string_reserve(str, str->size + 1);
-	if (!mw_check()) {return NULL;}
-	str->data[pos] = '\0'; 
+	mw_string_reserve(str, str->size + 1); // this can cause some slowness if str.cap happens to be equal to str.size
+	char* c = _mw_string_get_data(str);
+	c[pos] = '\0'; 
 	// the size is actually not updated here because \0 is just for c safety. 
-	return str->data;
+	return c;
 }
 
 /*
 Get a character at `i` position. Should be used when the index is unknown. If you're iterating over the characters, it's recommended
-to just access the raw data using `str.data`. Returns '\0' in case of failure.
+to just access the raw data using `mw_string_data`. Returns '\0' in case of failure.
 */
 static inline char
 mw_string_get(const mw_string* str, unsigned int i) {
-	_mw_set_code(mw_code_ok);
-	if (i >= str->size) {_mw_set_code(mw_code_error); return '\0';}
-	return str->data[i];
+	_mw_assert(i < str->size, "Out of bounds access. String is of length %u, cannot access index %u.", str->size, i);
+	return _mw_string_get_data(str)[i];
 }
 
 /*
 Set a character at `i` position. Should be used when the index is unknown. If you're iterating over the characters, it's recommended
-to just access the raw data using `str.data`.
+to just access the raw data using `mw_string_data`.
 */
 static inline void
 mw_string_set(mw_string* str, unsigned int i, char c) {
-	_mw_set_code(mw_code_ok);
-	if (i >= str->size) {_mw_set_code(mw_code_error); return;};
-	str->data[i] = c;
+	_mw_assert(i < str->size, "Out of bounds access. String is of length %u, cannot access index %u.", str->size, i);
+	_mw_string_get_data(str)[i] = c;
 }
 
 /*
@@ -254,14 +264,11 @@ Push a character to the end of the string. Will reserve more memory if required.
 static inline void
 mw_string_push(mw_string* str, char c) {
 
-	_mw_set_code(mw_code_ok);
-
 	if (str->size >= str->cap) {
 		mw_string_reserve(str, _MW_STRING_GROWTH_FACTOR(str->cap));
-		if (!mw_check()) {return;}
 	}
 
-	str->data[str->size++] = c;
+	_mw_string_get_data(str)[str->size++] = c;
 }
 
 /*
@@ -269,40 +276,22 @@ Pop a character from the end of the string.
 */
 static inline char
 mw_string_pop(mw_string* str, char c) {
-
-	_mw_set_code(mw_code_ok);
-
-	if (str->size == 0) {
-		_mw_set_code(mw_code_error);
-		return '\0';
-	}
-
-	return str->data[--str->size];;
+	_mw_assert(str->size != 0, "Pop out of empty string (%p) not possible.", str);
+	return _mw_string_get_data(str)[--str->size];;
 }
 
 /*
 Extend the string with a raw string, reserving more memory if needed. Also takes the length of the raw string.
 */
 static inline void
-mw_string_extendl(mw_string* str, const char* c, unsigned int len) {
-
-	_mw_set_code(mw_code_ok);
+mw_string_extend(mw_string* str, const char* c, unsigned int len) {
 
 	if (str->size + len >= str->cap) {
 		mw_string_reserve(str, _MW_STRING_GROWTH_FACTOR(str->cap) + len);
-		if (!mw_check()) {return;}
 	}
 
-	memcpy(str->data + str->size, c, len);
+	memcpy(_mw_string_get_data(str) + str->size, c, len);
 	str->size += len;
-}
-
-/*
-Extend the string with a raw string, reserving more memory if needed. Use `extendl` if the length of the raw string is known.
-*/
-static inline void 
-mw_string_extend(mw_string* str, const char* c) {
-	return mw_string_extendl(str, c, _mw_string_rawlen(c));
 }
 
 /*
@@ -310,32 +299,90 @@ Extend the string with another string, reserving more memory if needed.
 */
 static inline void
 mw_string_extends(mw_string* str, mw_string* other) {
-	return mw_string_extendl(str, other->data, other->size);
+	return mw_string_extend(str, _mw_string_get_data(other), other->size);
 }
 
 
 /*
-Create a copy of the string from another string.
+Finds the number of occurrences of a sub string. Returns 0 if none are found. If the sub string is larger, it also returns 0
 */
-static inline mw_string
-mw_string_copy(const mw_string* str) {
-	_mw_set_code(mw_code_ok);
-	mw_string copy = {0};
-	mw_string_froml(&copy, str->data, str->size);
-	if (!mw_check()) {return copy;}
-	return copy;
+static inline unsigned int
+mw_string_count(const mw_string* str, const char* c, unsigned int len) {
+
+	if (len > str->size) return 0;
+
+	unsigned int count = 0;
+	char* data = _mw_string_get_data(str);
+
+	for (unsigned int i = 0; i < str->size; i++) {
+		for (unsigned int j = 0; j < len; j++) {
+			if (data[i+j] != c[j]) break;
+		}
+		count++;
+	}
+
+	return count;
 }
+
+/*
+Finds the number of occurrences of a sub string. Returns 0 if none are found.
+*/
+static inline unsigned int
+mw_string_counts(const mw_string* str, const mw_string* other) {
+	return mw_string_count(str, _mw_string_get_data(other), other->size);
+}
+
+/*
+Finds the first index after `start` that matches the given sub string. Returns false if no sub string is found or if 
+the sub string is larger than the original string.
+*/
+static inline bool
+mw_string_find(const mw_string* str, const char* c, unsigned int len, unsigned int start, unsigned int* index) {
+
+	unsigned int count = 0;
+	char* data = _mw_string_get_data(str);
+	bool found = false;
+
+	for (unsigned int i = start; i < str->size; i++) {
+		// length of the sub string is less than the searchable range
+		if (len > str->size - i + 1) break;
+
+		for (unsigned int j = 0; j < len; j++) {
+			if (data[i+j] != c[j]) {
+				found = false;
+				break;
+			};
+			found = true;
+		}
+
+		if (found) {
+			*index = i;
+			break;
+		}
+	}
+
+	return found;
+}
+
+/*
+Finds the first index after `start` that matches the given sub string. Returns false if no sub string is found or if 
+the sub string is larger than the original string.
+*/
+static inline bool
+mw_string_finds(const mw_string* str, const mw_string* substr, unsigned int start, unsigned int* index) {
+	return mw_string_find(str, _mw_string_get_data(substr), substr->size, start, index);
+}
+
 
 /*
 Check whether a string starts with specified raw string. If another string object needs to be used, use `mw_string_data`.
 */
 static inline bool
-mw_string_startswith(const mw_string* str, const char* c) {
-
-	_mw_set_code(mw_code_ok);
+mw_string_startswith(const mw_string* str, const char* c, unsigned int len) {
 
 	unsigned int index = 0;
 	char* curr = (char*)c;
+	char* data = _mw_string_get_data(str);
 
 	while (*curr != '\0') {
 
@@ -343,7 +390,7 @@ mw_string_startswith(const mw_string* str, const char* c) {
 			return false;
 		}
 
-		if (*curr != str->data[index]) {
+		if (*curr != data[index]) {
 			return false;
 		}
 
@@ -359,14 +406,12 @@ mw_string_startswith(const mw_string* str, const char* c) {
 Check whether a string ends with specified raw string. If another string object needs to be used, use `mw_string_data`.
 */
 static inline bool
-mw_string_endswith(const mw_string* str, const char* c) {
+mw_string_endswith(const mw_string* str, const char* c, unsigned int len) {
 
-	_mw_set_code(mw_code_ok);
-
-	unsigned int len = _mw_string_rawlen(c);
 	unsigned int index = str->size - len;
 
 	char* curr = (char*) c;
+	char* data = _mw_string_get_data(str);
 
 	while (*curr != '\0') {
 
@@ -374,7 +419,7 @@ mw_string_endswith(const mw_string* str, const char* c) {
 			return false;
 		}
 
-		if (*curr != str->data[index]) {
+		if (*curr != data[index]) {
 			return false;
 		}
 
@@ -384,146 +429,6 @@ mw_string_endswith(const mw_string* str, const char* c) {
 	return true;
 }
 
-
 #endif // MEOWWW_STRING_H
-
-#ifndef MEOWWW_ARRAY_H
-#define MEOWWW_ARRAY_H
-
-
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-
-
-struct _mw_array {
-	uint8_t* data;
-	const unsigned int size;
-	const unsigned int elem_size;
-};
-
-typedef struct _mw_array _mw_array;
-
-
-static inline _mw_array
-_mw_array_new(unsigned int size, unsigned int elem_size) {
-	uint8_t* data = (uint8_t*) malloc(size * elem_size);
-	_mw_array arr = {
-		data,
-		size,
-		elem_size
-	};
-	return arr;
-}
-
-static inline void
-_mw_array_from(_mw_array* array, void* data) {
-	_mw_set_code(mw_code_ok);
-	memcpy(array->data, data, array->size * array->elem_size);
-}
-
-static inline void
-_mw_array_delete(_mw_array* array) {
-	_mw_set_code(mw_code_ok);
-	if (array->data) {
-		free(array->data);
-	}
-	array->data = NULL;
-}
-
-static inline unsigned int
-_mw_array_size(_mw_array* array) {
-	return array->size;
-}
-
-static inline void
-_mw_array_get(_mw_array* array, unsigned int i, void* ret) {
-
-	_mw_set_code(mw_code_ok);
-
-	if (array->data == NULL) {
-		_mw_set_code(mw_code_error);
-		return;
-	}
-	
-	if (i >= array->size) {
-		_mw_set_code(mw_code_error);;
-		return;
-	}
-
-	uint8_t* value = array->data + (i * array->elem_size);
-	memcpy(ret, value, array->elem_size);
-}
-
-static inline void
-_mw_array_set(_mw_array* array, unsigned int i, void* val) {
-
-	_mw_set_code(mw_code_ok);
-
-	if (array->data == NULL) {
-		_mw_set_code(mw_code_error);
-		return;	
-	}
-
-	if (i >= array->size) {
-		_mw_set_code(mw_code_error);
-		return;
-	}
-
-	uint8_t* value = array->data + (i * array->elem_size);
-	memcpy(value, val, array->elem_size);
-}
-
-
-#define _mw_define_array_with_prefix(PREFIX, NAME, TYPE) \
-typedef struct { TYPE* data; unsigned int size; unsigned int elem_size; } PREFIX ## mw_ ## NAME ## _array; \
-\
-static inline PREFIX ## mw_ ## NAME ## _array \
-PREFIX ## mw_ ## NAME ## _array_new(unsigned int size) { \
-    _mw_array raw = _mw_array_new(size, sizeof(TYPE)); \
-    PREFIX ## mw_ ## NAME ## _array arr = { \
-        .data = (TYPE*)raw.data, \
-        .size = raw.size, \
-        .elem_size = raw.elem_size \
-    }; \
-    return arr; \
-} \
-static inline PREFIX ## mw_ ## NAME ## _array \
-PREFIX ## mw_ ## NAME ## _array_newl(unsigned int size, void* data) { \
-    PREFIX ## mw_ ## NAME ## _array arr = PREFIX ## mw_ ## NAME ## _array_new(size); \
-	if (!mw_check()) {return arr;} \
-	_mw_array_from((_mw_array*)&arr, data); \
-    return arr; \
-} \
-static inline void \
-PREFIX ## mw_ ## NAME ## _array_from(PREFIX ## mw_ ## NAME ## _array* arr, TYPE data[]) { _mw_array_from((_mw_array*)arr, data); } \
-\
-static inline void \
-PREFIX ## mw_ ## NAME ## _array_delete(PREFIX ## mw_ ## NAME ## _array* arr) { _mw_array_delete((_mw_array*)arr); } \
-\
-static inline unsigned int \
-PREFIX ## mw_ ## NAME ## _array_size(PREFIX ## mw_ ## NAME ## _array* arr) { return arr->size; } \
-\
-static inline TYPE \
-PREFIX ## mw_ ## NAME ## _array_get(PREFIX ## mw_ ## NAME ## _array* arr, unsigned int i) { \
-	TYPE ret; \
-    _mw_array_get((_mw_array*)arr, i, &ret); \
-	return ret; \
-} \
-\
-static inline void \
-PREFIX ## mw_ ## NAME ## _array_set(PREFIX ## mw_ ## NAME ## _array* arr, unsigned int i, TYPE val) { \
-    _mw_array_set((_mw_array*)arr, i, &val); \
-}
-
-
-#define mw_define_array(NAME, TYPE) _mw_define_array_with_prefix(,NAME,TYPE)
-#define _mw_define_internal_array(NAME, TYPE) _mw_define_array_with_prefix(_,NAME,TYPE)
-
-mw_define_array(int, int)
-mw_define_array(float, float)
-
-#endif // MEOWWW_ARRAY_H
-
 
 #endif // MEOWWW_H

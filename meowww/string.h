@@ -260,61 +260,6 @@ mw_string_extends(mw_string* str, mw_string* other) {
 
 
 /*
-Check whether a string starts with specified raw string. If another string object needs to be used, use `mw_string_data`.
-*/
-static inline bool
-mw_string_startswith(const mw_string* str, const char* c, unsigned int len) {
-
-	unsigned int index = 0;
-	char* curr = (char*)c;
-	char* data = _mw_string_get_data(str);
-
-	while (*curr != '\0') {
-
-		if (index >= str->size) {
-			return false;
-		}
-
-		if (*curr != data[index]) {
-			return false;
-		}
-
-		index++;
-		curr++;
-	}
-
-	return true;
-}
-
-
-/*
-Check whether a string ends with specified raw string. If another string object needs to be used, use `mw_string_data`.
-*/
-static inline bool
-mw_string_endswith(const mw_string* str, const char* c, unsigned int len) {
-
-	unsigned int index = str->size - len;
-
-	char* curr = (char*) c;
-	char* data = _mw_string_get_data(str);
-
-	while (*curr != '\0') {
-
-		if (index >= str->size) {
-			return false;
-		}
-
-		if (*curr != data[index]) {
-			return false;
-		}
-
-		index++;
-		curr++;
-	}
-	return true;
-}
-
-/*
 Finds the number of occurrences of a sub string. Returns 0 if none are found. If the sub string is larger, it also returns 0
 */
 static inline unsigned int
@@ -384,5 +329,60 @@ mw_string_finds(const mw_string* str, const mw_string* substr, unsigned int star
 	return mw_string_find(str, _mw_string_get_data(substr), substr->size, start, index);
 }
 
+
+/*
+Check whether a string starts with specified raw string. If another string object needs to be used, use `mw_string_data`.
+*/
+static inline bool
+mw_string_startswith(const mw_string* str, const char* c, unsigned int len) {
+
+	unsigned int index = 0;
+	char* curr = (char*)c;
+	char* data = _mw_string_get_data(str);
+
+	while (*curr != '\0') {
+
+		if (index >= str->size) {
+			return false;
+		}
+
+		if (*curr != data[index]) {
+			return false;
+		}
+
+		index++;
+		curr++;
+	}
+
+	return true;
+}
+
+
+/*
+Check whether a string ends with specified raw string. If another string object needs to be used, use `mw_string_data`.
+*/
+static inline bool
+mw_string_endswith(const mw_string* str, const char* c, unsigned int len) {
+
+	unsigned int index = str->size - len;
+
+	char* curr = (char*) c;
+	char* data = _mw_string_get_data(str);
+
+	while (*curr != '\0') {
+
+		if (index >= str->size) {
+			return false;
+		}
+
+		if (*curr != data[index]) {
+			return false;
+		}
+
+		index++;
+		curr++;
+	}
+	return true;
+}
 
 #endif // MEOWWW_STRING_H

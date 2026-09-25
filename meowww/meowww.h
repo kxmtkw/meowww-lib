@@ -4,6 +4,5 @@
 #include "defs.h"
 
 #include "string.h"
-#include "array.h"
 
 #endif // MEOWWW_H

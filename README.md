@@ -54,7 +54,6 @@ There are two ways to install `meowww`.
 Here are the currently supported features.
 
 + String (`mw_string`)
-+ Arrays (define arrays for custom types using `mw_define_array`) (`mw_*_array`)
 
 ---
 
@@ -68,7 +67,6 @@ Here are the currently supported features.
 ### Roadmap
 
 + Strings `In Progress`
-+ Arrays `In Progress`
 + Vector (dynamic arrays)
 + Maps
 + Set

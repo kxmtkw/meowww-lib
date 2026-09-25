@@ -47,7 +47,7 @@ mw_string_reserve(mw_string* str, unsigned int new_cap) {
 		else 
 		str->data.heap_ptr = (char*) realloc(str->data.heap_ptr, new_cap);
 
-		_mw_assert(str->data.heap_ptr == NULL, "Memory could not be allocated for string %p.", str);
+		_mw_assert(str->data.heap_ptr != NULL, "Memory could not be allocated for string %p.", str);
 	}
 
 	str->cap = new_cap;
@@ -343,6 +343,46 @@ mw_string_counts(const mw_string* str, const mw_string* other) {
 	return mw_string_count(str, _mw_string_get_data(other), other->size);
 }
 
+/*
+Finds the first index after `start` that matches the given sub string. Returns false if no sub string is found or if 
+the sub string is larger than the original string.
+*/
+static inline bool
+mw_string_find(const mw_string* str, const char* c, unsigned int len, unsigned int start, unsigned int* index) {
+
+	unsigned int count = 0;
+	char* data = _mw_string_get_data(str);
+	bool found = false;
+
+	for (unsigned int i = start; i < str->size; i++) {
+		// length of the sub string is less than the searchable range
+		if (len > str->size - i + 1) break;
+
+		for (unsigned int j = 0; j < len; j++) {
+			if (data[i+j] != c[j]) {
+				found = false;
+				break;
+			};
+			found = true;
+		}
+
+		if (found) {
+			*index = i;
+			break;
+		}
+	}
+
+	return found;
+}
+
+/*
+Finds the first index after `start` that matches the given sub string. Returns false if no sub string is found or if 
+the sub string is larger than the original string.
+*/
+static inline bool
+mw_string_finds(const mw_string* str, const mw_string* substr, unsigned int start, unsigned int* index) {
+	return mw_string_find(str, _mw_string_get_data(substr), substr->size, start, index);
+}
 
 
 #endif // MEOWWW_STRING_H

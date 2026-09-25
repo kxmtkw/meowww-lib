@@ -10,6 +10,8 @@
 #define _MW_STRING_INLINE_BYTES 16
 #define _MW_STRING_GROWTH_FACTOR(VALUE) VALUE + (VALUE >> 1)
 
+#define mw_string_rawpack(raw_str) raw_str, strlen(raw_str)
+
 struct mw_string {
 	unsigned int cap;
 	unsigned int size;
@@ -20,16 +22,6 @@ struct mw_string {
 };
 
 typedef struct mw_string mw_string;
-
-static inline unsigned int
-_mw_string_rawlen(const char* c) {
-	unsigned int len = 0;
-	while (*c != '\0') {
-		len++;
-		c++;
-	}
-	return len;
-}
 
 
 /*
@@ -104,7 +96,7 @@ mw_string_resize(mw_string* str, unsigned int new_size) {
 Create a new string from a raw string with it's length.
 */
 static inline mw_string 
-mw_string_newl(const char* c, unsigned int len) {
+mw_string_new(const char* c, unsigned int len) {
 	mw_string string;
 	mw_string_reserve(&string, len);
 	memcpy(_mw_string_get_data(&string), c, len);
@@ -114,11 +106,11 @@ mw_string_newl(const char* c, unsigned int len) {
 
 /*
 Create a new string from a raw string. It's O(n^2) since the length of the string has to be found too. 
-If the length of the raw string is known, use `_mw_string_newl`
+If the length of the raw string is known, use `_mw_string_new`
 */
 static inline mw_string 
-mw_string_new(const char* c) {
-	return mw_string_newl(c, _mw_string_rawlen(c));
+mw_string_newc(const char* c) {
+	return mw_string_new(c, strlen(c));
 }
 
 
@@ -127,7 +119,7 @@ Create a new string from another string.
 */
 static inline mw_string 
 mw_string_news(const mw_string* src) {
-	return mw_string_newl(_mw_string_get_data(src), src->size);
+	return mw_string_new(_mw_string_get_data(src), src->size);
 }
 
 
@@ -149,7 +141,7 @@ mw_string_delete(mw_string* str) {
 Assign a string from a raw string and it's length.
 */
 static inline void
-mw_string_froml(mw_string* str, const char* c, unsigned int len) {
+mw_string_from(mw_string* str, const char* c, unsigned int len) {
 	mw_string_reserve(str, len);
 	memcpy(_mw_string_get_data(str), c, len);
 	str->size = len;
@@ -161,8 +153,8 @@ Assign a string from a raw string. The process is O(n^2) because length has to b
 a more optimized process, use `mw_string_froml` instead.
 */
 static inline void
-mw_string_from(mw_string* str, const char* c) {
-	return mw_string_froml(str, c, _mw_string_rawlen(c));
+mw_string_fromc(mw_string* str, const char* c) {
+	return mw_string_from(str, c, strlen(c));
 }
 
 /*
@@ -170,7 +162,7 @@ Assign a string with another string.
 */
 static inline void
 mw_string_froms(mw_string* str, const mw_string* src) {
-	return mw_string_froml(str, _mw_string_get_data(src), src->size);
+	return mw_string_from(str, _mw_string_get_data(src), src->size);
 }
 
 /*
@@ -248,7 +240,7 @@ mw_string_pop(mw_string* str, char c) {
 Extend the string with a raw string, reserving more memory if needed. Also takes the length of the raw string.
 */
 static inline void
-mw_string_extendl(mw_string* str, const char* c, unsigned int len) {
+mw_string_extend(mw_string* str, const char* c, unsigned int len) {
 
 	if (str->size + len >= str->cap) {
 		mw_string_reserve(str, _MW_STRING_GROWTH_FACTOR(str->cap) + len);
@@ -259,19 +251,11 @@ mw_string_extendl(mw_string* str, const char* c, unsigned int len) {
 }
 
 /*
-Extend the string with a raw string, reserving more memory if needed. Use `extendl` if the length of the raw string is known.
-*/
-static inline void 
-mw_string_extendc(mw_string* str, const char* c) {
-	return mw_string_extendl(str, c, _mw_string_rawlen(c));
-}
-
-/*
 Extend the string with another string, reserving more memory if needed.
 */
 static inline void
 mw_string_extends(mw_string* str, mw_string* other) {
-	return mw_string_extendl(str, _mw_string_get_data(other), other->size);
+	return mw_string_extend(str, _mw_string_get_data(other), other->size);
 }
 
 
@@ -279,7 +263,7 @@ mw_string_extends(mw_string* str, mw_string* other) {
 Check whether a string starts with specified raw string. If another string object needs to be used, use `mw_string_data`.
 */
 static inline bool
-mw_string_startswith(const mw_string* str, const char* c) {
+mw_string_startswith(const mw_string* str, const char* c, unsigned int len) {
 
 	unsigned int index = 0;
 	char* curr = (char*)c;
@@ -307,9 +291,8 @@ mw_string_startswith(const mw_string* str, const char* c) {
 Check whether a string ends with specified raw string. If another string object needs to be used, use `mw_string_data`.
 */
 static inline bool
-mw_string_endswith(const mw_string* str, const char* c) {
+mw_string_endswith(const mw_string* str, const char* c, unsigned int len) {
 
-	unsigned int len = _mw_string_rawlen(c);
 	unsigned int index = str->size - len;
 
 	char* curr = (char*) c;
@@ -335,7 +318,7 @@ mw_string_endswith(const mw_string* str, const char* c) {
 Finds the number of occurrences of a sub string. Returns 0 if none are found. If the sub string is larger, it also returns 0
 */
 static inline unsigned int
-mw_string_countl(const mw_string* str, const char* c, unsigned int len) {
+mw_string_count(const mw_string* str, const char* c, unsigned int len) {
 
 	if (len > str->size) return 0;
 
@@ -356,17 +339,8 @@ mw_string_countl(const mw_string* str, const char* c, unsigned int len) {
 Finds the number of occurrences of a sub string. Returns 0 if none are found.
 */
 static inline unsigned int
-mw_string_countc(const mw_string* str, const char* c) {
-	return mw_string_countl(str, c, _mw_string_rawlen(c));
-}
-
-
-/*
-Finds the number of occurrences of a sub string. Returns 0 if none are found.
-*/
-static inline unsigned int
 mw_string_counts(const mw_string* str, const mw_string* other) {
-	return mw_string_countl(str, _mw_string_get_data(other), other->size);
+	return mw_string_count(str, _mw_string_get_data(other), other->size);
 }
 
 

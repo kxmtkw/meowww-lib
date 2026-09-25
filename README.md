@@ -37,7 +37,7 @@
 
 There are two ways to install `meowww`. 
 
-1. Copy the `dist/meowww.zip` and extract it inside your project.
+1. Copy the `meowww/` and extract it inside your project.
 	+ This gives you modular includes like `meowww/string.h`, `meowww/array.h`. 
 	+ You still include everything via `meowww/meowww.h`.
 2. If you do not want to deal with a directory in your project, you can use `dist/meowww.h` which is a compiled version of all library headers.
@@ -45,7 +45,7 @@ There are two ways to install `meowww`.
 
 
 > [!TIP]
-> If you do no trust the .zip file, just download the directory with a github directory downloader online.
+> You can download the directory `meowww` alone, using a github directory downloader online.
 
 ---
 

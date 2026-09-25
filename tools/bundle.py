@@ -1,5 +1,4 @@
 import re
-import zipfile
 from pathlib import Path
 
 LIBRARY_DIR = Path("meowww")
@@ -44,24 +43,9 @@ def resolve_includes(filepath: str | Path) -> str:
     return "".join(output)
 
 
-def create_zip_archive(source_dir: Path, zip_path: Path) -> None:
-    
-    zip_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        
-        for file in source_dir.iterdir():
-            
-            if file.is_file():
-                arcname = Path(source_dir.name) / file.name
-                zipf.write(file, arcname=arcname)
-
-
 if __name__ == "__main__":
     DIST_DIR.mkdir(parents=True, exist_ok=True)
 
     bundled = resolve_includes(LIBRARY_DIR / "meowww.h")
     with open(DIST_DIR / "meowww.h", "w", encoding="utf-8") as f:
         f.write(bundled)
-
-    create_zip_archive(LIBRARY_DIR, DIST_DIR / "meowww.zip")
